@@ -1,0 +1,10 @@
+[package]
+name = "kernel"
+
+[[bin]]
+name = "onish-kernel"
+path = "src/main.rs"
+
+[profile.release]
+panic = "abort"
+lto = true        # Link Time Optimization (makes the image smaller)
