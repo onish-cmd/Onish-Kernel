@@ -4,10 +4,10 @@
 use core::panic::PanicInfo;
 
 #[no_mangle]
-fn print(str: &string) {
+fn print(str: &str) {
     let uart = 0x1000_0000 as *mut u8;
     unsafe {
-    for &c in str {
+    for &c in str.as_bytes() {
         core::ptr::write_volatile(uart, c)
     }
 }
