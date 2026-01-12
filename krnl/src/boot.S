@@ -2,7 +2,7 @@
 .global _start
 
 _start:
-    csrr 0, mhartid
+    csrr a0, mhartid
     bnez a0, park
 
     li t0, 0x10000000
@@ -26,8 +26,8 @@ park:
     wfi
     j park
 
-.secton .bss.stack
+.section .bss.stack
 .align 16
 stack_base:
     .space 4096 * 4
-__stack_top
+__stack_top:
