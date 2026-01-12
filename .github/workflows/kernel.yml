@@ -20,6 +20,9 @@ jobs:
           targets: riscv64gc-unknown-none-elf
           components: llvm-tools-preview
 
+      - name: Install binutils
+        run: cargo install cargo-binutils
+
       - name: Build Kernel
         run: cargo build --release --target riscv64gc-unknown-none-elf
         working-directory: krnl
