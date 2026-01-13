@@ -16,7 +16,8 @@ fn print(str: &str) {
     unsafe {
     if let Some(u) = UART {
     for &c in str.as_bytes() {
-        core::ptr::write_volatile(u, c)
+    while (core::ptr::read_volatile(u.add(5)) & 0x20) == 0 {}
+    core::ptr::write_volatile(u, c);
     }
 }
 }
@@ -36,7 +37,7 @@ pub extern "C" fn kmain(_hartid: usize, fdt_ptr: usize) -> ! {
         UART = Some(uart)
     }
     
-    print("NISH");
+    print("ONISH");
     unsafe { loop { asm!("wfi") } }
 }
 

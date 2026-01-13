@@ -2,12 +2,10 @@
 .global _start
 
 _start:
-    csrr a0, mhartid
-    bnez a0, park
-
-    li t0, 0x10000000
-    li t1, 79
-    sb t1, 0(t0)
+    mv s1, a1
+    mv s0, a0
+    csrr t0, mhartid
+    bnez t0, park
 
     la sp, __stack_top
 
@@ -20,6 +18,9 @@ bss_clear:
     j bss_clear
 
 launch:
+    mv a0, s0
+    mv a1, s1
+    
     tail kmain
 
 park:

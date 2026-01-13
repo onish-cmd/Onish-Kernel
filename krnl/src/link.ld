@@ -4,35 +4,30 @@ ENTRY( _start )
 
 SECTIONS
 {
-  /* QEMU Virt RAM starts here */
   . = 0x80000000;
 
-  /* 1. Code Section */
   .text : {
     KEEP(*(.text._start))
     *(.text .text.*)
   }
 
-  /* 2. Read-only Data (Strings) */
-  .rodata : {
+  .rodata : ALIGN(4K) {
     *(.rodata .rodata.*)
   }
 
-  /* 3. Initialized Data */
-  .data : {
+  .data : ALIGN(4K) {
     *(.data .data.*)
   }
 
-  /* 4. Uninitialized Data (BSS) */
-  .bss : {
-    __bss_start = .;  /* Mark the start for boot.S to clear */
+  .bss : ALIGN(4K) {
+    PROVIDE(__bss_start = .); 
     *(.bss .bss.*)
     *(COMMON)
-    __bss_end = .;    /* Mark the end */
+    PROVIDE(__bss_end = .);
   }
 
-  /* 5. The Stack */
-  . = ALIGN(16);      /* RISC-V 64-bit stack MUST be 16-byte aligned */
-  . += 0x4000;        /* Allocate 16KB for the stack */
-  __stack_top = .;    /* The address our boot.S loads into 'sp' */
+  /* Move the stack to a safe distance or define it clearly */
+  . = ALIGN(16);
+  . += 0x8000; /* 32KB Stack */
+  PROVIDE(__stack_top = .);
 }
