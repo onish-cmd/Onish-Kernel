@@ -6,6 +6,7 @@ extern crate fdt;
 use core::panic::PanicInfo;
 use core::arch::global_asm;
 use core::arch::asm;
+use core::fmt::Write;
 
 global_asm!(include_str!("boot.S"));
 
@@ -41,8 +42,29 @@ pub extern "C" fn kmain(_hartid: usize, fdt_ptr: usize) -> ! {
     unsafe { loop { asm!("wfi") } }
 }
 
+const PANIC_UART: *mut u8 = 0x1000_0000 as *mut u8;
+struct PanicWriter;
+impl Write for PanicWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for &b in s.as_bytes() {
+            unsafe {
+                // Use the HARDCODED address here so we don't depend on FDT
+                while (core::ptr::read_volatile(PANIC_UART.add(5)) & 0x20) == 0 {}
+                core::ptr::write_volatile(PANIC_UART, b);
+            }
+        }
+        Ok(())
+    }
+}
+
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    print("PANIC");
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    let mut writer = PanicWriter;
+    let _ = writeln!(writer, "\n\r!!! KERNEL CRASHED !!!");
+    // This will now print the EXACT error from the FDT crate
+    let _ = writeln!(writer, "{}", info); 
+    
+    loop {
+        unsafe { asm!("wfi") }
+    }
 }
