@@ -3,7 +3,6 @@ rustflags = [
     "-C", "link-arg=-Tlinker.ld",
     "-C", "link-arg=-nostdlib",
     "-C", "link-arg=-static",
-    "-C", "linker-flavor=ld.lld",
 ]
 
 [build]
