@@ -1,0 +1,10 @@
+[target.x86_64-unknown-none]
+rustflags = [
+    "-C", "link-arg=-Tlinker.ld",
+    "-C", "link-arg=-nostdlib",
+    "-C", "link-arg=-static",
+    "-C", "linker-flavor=ld.lld",
+]
+
+[build]
+target = "x86_64-unknown-none"
