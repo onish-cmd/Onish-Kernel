@@ -1,5 +1,5 @@
 [target.x86_64-unknown-none]
-linker-flavor = "ld.lld"
+linker-flavor = "gnu-lld"
 linker = "rust-lld"
 rustflags = [
     "-C", "relocation-model=pic",
