@@ -4,7 +4,9 @@ rustflags = [
     "-C", "link-arg=-Wl,-pie",
     "-C", "link-arg=-Wl,--no-dynamic-linker",
     "-C", "link-arg=-Wl,-z,max-page-size=0x1000",
-    "-C", "link-arg=-Tlinker.ld",
     "-C", "link-arg=-nostartfiles",
     "-C", "link-arg=-static",
+    "-C", "link-arg=-nostdlib",     # Don't use standard system libraries
+    "-C", "link-arg=-Tlinker.ld",   # Use your custom linker script
+    "-C", "no-stack-check",
 ]
