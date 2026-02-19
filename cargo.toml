@@ -1,0 +1,9 @@
+[package]
+name = "Vibe-OS"
+
+[[bin]]
+name = "vibe-os"
+path = "src/kernel.rs"
+
+[profile.release]
+panic = "abort"
