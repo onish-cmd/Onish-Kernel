@@ -1,7 +1,7 @@
 // drivers/framebuffer/lib.rs
 #![no_std]
 
-pub struct cursor {
+pub struct Cursor {
     pub x: usize,
     pub y: usize,
     pub color: u32,
@@ -30,7 +30,7 @@ impl Cursor {
         }
     }
 
-    pub unsafe fn clear(color: u32) {
+    pub unsafe fn clear(&mut self, color: u32) {
         cursor.color = color;
         for i in 0..(cursor.width * cursor.height) {
             unsafe {

@@ -20,7 +20,7 @@ pub extern "C" fn _start() -> ! {
             );
         }
     }
-    framebuffer::clear(0x1a1b26)
+    cursor.clear(0x001A1B26)
     loop { unsafe {
             asm!(
                 "hlt"
