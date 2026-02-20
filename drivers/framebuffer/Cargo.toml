@@ -1,5 +1,5 @@
 [package]
-name = "vibe-framebuffer"
+name = "vibe_framebuffer"
 version = "0.1.0"
 
 [lib]

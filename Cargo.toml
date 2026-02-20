@@ -10,4 +10,4 @@ panic = "abort"
 
 [dependencies]
 limine = "0.5.0"
-vibe-framebuffer = { path = "drivers/framebuffer" }
+vibe_framebuffer = { path = "drivers/framebuffer" }
