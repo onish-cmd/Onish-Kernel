@@ -12,13 +12,13 @@ static mut UI_CURSOR: Option<Cursor> = None;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
+    unsafe { if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
         if let Some(fb) = fb_response.framebuffers().next() {
             UI_CURSOR = Some(Cursor::new(
                 fb.addr() as *mut u32, 
                 fb.width(), 
                 fb.height()
-            ));
+            )); }
         }
     }
     clear_screen(0x001A1B26);
@@ -33,9 +33,7 @@ pub extern "C" fn _start() -> ! {
 pub fn clear_screen(color: u32) {
     unsafe { 
         if let Some(ref mut cursor) = UI_CURSOR {
-            unsafe {
-                cursor.clear(color);
-            }
+            cursor.clear(color);
         }   
     }
 }
