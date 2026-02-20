@@ -65,6 +65,7 @@ impl Cursor {
             fb_ptr: ptr,
             width,
             height,
+            font: None,
         }
     }
 
