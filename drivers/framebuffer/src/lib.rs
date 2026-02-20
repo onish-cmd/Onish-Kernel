@@ -116,53 +116,50 @@ impl Cursor {
         self.y -= f_height;
         self.dirty = true;
     }
+pub fn draw_char(&mut self, c: char) {
+    // 1. Get the font metrics and header out of self immediately
+    let (f_width, f_height, bpr) = if let Some(ref font) = self.font {
+        (font.header.width as usize, font.header.height as usize, (font.header.width + 7) / 8)
+    } else {
+        return;
+    };
 
-    pub fn draw_char(&mut self, c: char) {
-        // 1. Get the metrics and the font reference out early
-        let (f_width, f_height) = {
-            let f = self.font.as_ref().unwrap();
-            (f.header.width as usize, f.header.height as usize)
-        };
-
-        if c == '\n' {
+    if c == '\n' {
+        self.x = 0;
+        self.y += f_height;
+    } else {
+        if self.x + f_width > self.width {
             self.x = 0;
             self.y += f_height;
-        } else {
-            if self.x + f_width > self.width {
-                self.x = 0;
-                self.y += f_height;
-            }
+        }
 
-            // 2. Extract the glyph reference in a limited scope
-            // This 'glyph' is just a slice of bytes.
-            // We use a local variable to hold the reference.
-            let (glyph, bpr) = {
-                let font = self.font.as_ref().expect("Font missing");
-                (font.get_glyph(c), (font.header.width + 7) / 8)
-            };
+        // 2. Get the glyph data as a reference. 
+        // We use a temporary scope to satisfy the borrow checker.
+        let glyph = self.font.as_ref().unwrap().get_glyph(c);
 
-            // 3. Loop using the local 'glyph' reference.
-            // Rust's NLL (Non-Lexical Lifetimes) is smart enough to realize
-            // that 'glyph' borrows from 'self.font', but 'self.font' is just a
-            // field. We can call other methods on 'self' as long as they don't
-            // touch 'self.font'.
-            for py in 0..f_height {
-                for px in 0..f_width {
-                    let byte = glyph[py * bpr as usize + px / 8];
-                    if (byte >> (7 - (px % 8))) & 1 == 1 {
-                        // This will now work because 'glyph' doesn't
-                        // block 'self.write_pixel'
-                        self.write_pixel(self.x + px, self.y + py, self.color_fg);
+        // 3. Extract the variables we need for writing so we don't have to touch 'self' fields in the loop
+        let start_x = self.x;
+        let start_y = self.y;
+        let fg = self.color_fg;
+
+        for py in 0..f_height {
+            for px in 0..f_width {
+                let byte = glyph[py * bpr as usize + px / 8];
+                if (byte >> (7 - (px % 8))) & 1 == 1 {
+                    // 4. Wrap the unsafe call
+                    unsafe {
+                        self.write_pixel(start_x + px, start_y + py, fg);
                     }
                 }
             }
-            self.x += f_width;
         }
-
-        if self.y + f_height > self.height {
-            self.scroll_up();
-        }
+        self.x += f_width;
     }
+
+    if self.y + f_height > self.height {
+        self.scroll_up();
+    }
+}
 }
 
 impl fmt::Write for Cursor {
