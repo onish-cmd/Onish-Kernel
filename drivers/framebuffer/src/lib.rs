@@ -109,38 +109,44 @@ impl Cursor {
         self.y -= f_height;
         self.dirty = true;
     }
+pub fn draw_char(&mut self, c: char) {
+    let f_height = self.font.as_ref().map_or(16, |f| f.header.height as usize);
+    let f_width = self.font.as_ref().map_or(8, |f| f.header.width as usize);
 
-    pub fn draw_char(&mut self, c: char) {
-        let f_height = self.font.as_ref().map_or(16, |f| f.header.height as usize);
-        let f_width = self.font.as_ref().map_or(8, |f| f.header.width as usize);
-
-        if c == '\n' {
+    if c == '\n' {
+        self.x = 0;
+        self.y += f_height;
+    } else {
+        if self.x + f_width > self.width {
             self.x = 0;
             self.y += f_height;
-        } else {
-            if self.x + f_width > self.width {
-                self.x = 0;
-                self.y += f_height;
-            }
+        }
 
-            if let Some(ref font) = self.font {
-                let glyph = font.get_glyph(c);
-                let bytes_per_row = (font.header.width + 7) / 8;
-                for py in 0..f_height {
-                    for px in 0..f_width {
-                        let byte = glyph[(py * bytes_per_row as usize + px / 8)];
-                        if (byte >> (7 - (px % 8))) & 1 == 1 {
-                            unsafe { self.write_pixel(self.x + px, self.y + py, self.color_fg); }
-                        }
+        // We get the glyph and the metrics out immediately
+        let (glyph, bytes_per_row) = if let Some(ref font) = self.font {
+            (font.get_glyph(c), (font.header.width + 7) / 8)
+        } else {
+            return; // No font, nothing to draw
+        };
+
+        // Now we loop. Since 'glyph' is a reference to the data in the font 
+        // but NOT a reference to 'self' anymore, the borrow checker is happy!
+        for py in 0..f_height {
+            for px in 0..f_width {
+                let byte = glyph[(py * bytes_per_row as usize + px / 8)];
+                if (byte >> (7 - (px % 8))) & 1 == 1 {
+                    unsafe { 
+                        // Now we can borrow self as mutable!
+                        self.write_pixel(self.x + px, self.y + py, self.color_fg); 
                     }
                 }
-                self.x += f_width;
             }
         }
+        self.x += f_width;
+    }
 
-        if self.y + f_height > self.height {
-            self.scroll_up();
-        }
+    if self.y + f_height > self.height {
+        self.scroll_up();
     }
 }
 
