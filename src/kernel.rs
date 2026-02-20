@@ -6,24 +6,37 @@ extern crate limine;
 use limine::request::FramebufferRequest;
 use core::arch::asm;
 use vibe_framebuffer;
+use spin::Mutex;
+
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
+static mut UI_CURSOR: Option<vibe_framebuffer::Cursor> = None;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
         if let Some(fb) = fb_response.framebuffers().next() {
-            let mut cursor = vibe_framebuffer::Cursor::new(
+            UI_CURSOR = Some(vibe_framebuffer::Cursor::new(
                 fb.addr() as *mut u32, 
                 fb.width(), 
                 fb.height()
-            );
+            ));
+
+            *UI_CURSOR.lock() = Some(cursor);
         }
     }
-    cursor.clear(0x001A1B26);
+    clear_screen(0x001A1B26);
     loop { unsafe {
             asm!(
                 "hlt"
             )
+        }
+    }
+}
+
+pub fn clear_screen(color: u32) {
+    if let Some(ref mut cursor) = UI_CURSOR {
+        unsafe {
+            cursor.clear(color);
         }
     }
 }
