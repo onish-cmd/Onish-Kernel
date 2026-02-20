@@ -116,50 +116,59 @@ impl Cursor {
         self.y -= f_height;
         self.dirty = true;
     }
-pub fn draw_char(&mut self, c: char) {
-    // 1. Get the font metrics and header out of self immediately
-    let (f_width, f_height, bpr) = if let Some(ref font) = self.font {
-        (font.header.width as usize, font.header.height as usize, (font.header.width + 7) / 8)
-    } else {
-        return;
-    };
+    pub fn draw_char(&mut self, c: char) {
+        // 1. Get metrics and the GLYPH DATA first, then drop the borrow
+        let (f_width, f_height, bpr, glyph_data) = if let Some(ref font) = self.font {
+            let metrics = (
+                font.header.width as usize,
+                font.header.height as usize,
+                (font.header.width as usize + 7) / 8,
+            );
+            // We get the glyph and immediately convert/copy it if possible,
+            // or just ensure the compiler knows we're done with 'font' after this block.
+            let data = font.get_glyph(c);
+            (metrics.0, metrics.1, metrics.2, data)
+        } else {
+            return;
+        };
 
-    if c == '\n' {
-        self.x = 0;
-        self.y += f_height;
-    } else {
-        if self.x + f_width > self.width {
+        // Note: If get_glyph returns a &[u8], 'glyph_data' is still tied to 'self'.
+        // To break the tie, we can copy the glyph into a local stack array.
+        // Most font glyphs are small (e.g., 8x16 = 16 bytes).
+        let mut temp_glyph = [0u8; 64]; // Adjust size based on your max font size
+        let actual_len = glyph_data.len().min(64);
+        temp_glyph[..actual_len].copy_from_slice(&glyph_data[..actual_len]);
+
+        if c == '\n' {
             self.x = 0;
             self.y += f_height;
-        }
+        } else {
+            if self.x + f_width > self.width {
+                self.x = 0;
+                self.y += f_height;
+            }
 
-        // 2. Get the glyph data as a reference. 
-        // We use a temporary scope to satisfy the borrow checker.
-        let glyph = self.font.as_ref().unwrap().get_glyph(c);
+            let start_x = self.x;
+            let start_y = self.y;
+            let fg = self.color_fg;
 
-        // 3. Extract the variables we need for writing so we don't have to touch 'self' fields in the loop
-        let start_x = self.x;
-        let start_y = self.y;
-        let fg = self.color_fg;
-
-        for py in 0..f_height {
-            for px in 0..f_width {
-                let byte = glyph[py * bpr as usize + px / 8];
-                if (byte >> (7 - (px % 8))) & 1 == 1 {
-                    // 4. Wrap the unsafe call
-                    unsafe {
+            // Now we use 'temp_glyph', which is a local copy on the stack.
+            // 'self' is now completely free to be borrowed mutably!
+            for py in 0..f_height {
+                for px in 0..f_width {
+                    let byte = temp_glyph[py * bpr + px / 8];
+                    if (byte >> (7 - (px % 8))) & 1 == 1 {
                         self.write_pixel(start_x + px, start_y + py, fg);
                     }
                 }
             }
+            self.x += f_width;
         }
-        self.x += f_width;
-    }
 
-    if self.y + f_height > self.height {
-        self.scroll_up();
+        if self.y + f_height > self.height {
+            self.scroll_up();
+        }
     }
-}
 }
 
 impl fmt::Write for Cursor {
