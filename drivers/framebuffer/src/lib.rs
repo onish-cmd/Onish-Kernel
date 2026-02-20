@@ -116,9 +116,13 @@ impl Cursor {
         self.y -= f_height;
         self.dirty = true;
     }
+
     pub fn draw_char(&mut self, c: char) {
-        let f_height = self.font.as_ref().map_or(16, |f| f.header.height as usize);
-        let f_width = self.font.as_ref().map_or(8, |f| f.header.width as usize);
+        // 1. Get the metrics and the font reference out early
+        let (f_width, f_height) = {
+            let f = self.font.as_ref().unwrap();
+            (f.header.width as usize, f.header.height as usize)
+        };
 
         if c == '\n' {
             self.x = 0;
@@ -129,23 +133,26 @@ impl Cursor {
                 self.y += f_height;
             }
 
-            // We get the glyph and the metrics out immediately
-            let (glyph, bytes_per_row) = if let Some(ref font) = self.font {
+            // 2. Extract the glyph reference in a limited scope
+            // This 'glyph' is just a slice of bytes.
+            // We use a local variable to hold the reference.
+            let (glyph, bpr) = {
+                let font = self.font.as_ref().expect("Font missing");
                 (font.get_glyph(c), (font.header.width + 7) / 8)
-            } else {
-                return; // No font, nothing to draw
             };
 
-            // Now we loop. Since 'glyph' is a reference to the data in the font
-            // but NOT a reference to 'self' anymore, the borrow checker is happy!
+            // 3. Loop using the local 'glyph' reference.
+            // Rust's NLL (Non-Lexical Lifetimes) is smart enough to realize
+            // that 'glyph' borrows from 'self.font', but 'self.font' is just a
+            // field. We can call other methods on 'self' as long as they don't
+            // touch 'self.font'.
             for py in 0..f_height {
                 for px in 0..f_width {
-                    let byte = glyph[(py * bytes_per_row as usize + px / 8)];
+                    let byte = glyph[py * bpr as usize + px / 8];
                     if (byte >> (7 - (px % 8))) & 1 == 1 {
-                        unsafe {
-                            // Now we can borrow self as mutable!
-                            self.write_pixel(self.x + px, self.y + py, self.color_fg);
-                        }
+                        // This will now work because 'glyph' doesn't
+                        // block 'self.write_pixel'
+                        self.write_pixel(self.x + px, self.y + py, self.color_fg);
                     }
                 }
             }
