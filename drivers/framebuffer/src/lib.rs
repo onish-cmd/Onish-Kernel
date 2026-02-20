@@ -66,7 +66,7 @@ impl Cursor {
             width,
             height,
             font: None,
-        };
+        }
     }
 
     /// Writes a single pixel to the framebuffer
