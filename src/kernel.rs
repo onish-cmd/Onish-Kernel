@@ -55,9 +55,13 @@ pub extern "C" fn _start() -> ! {
             }
         }
     }
-
-    clear_screen(0x001A1B26); // Clear first so we see the text!
     println!("Vibe OS is alive!");
+    numx = 2;
+    numy = 4;
+    result = numx + numy;
+    println!("fmt test: {} + {} = {}", numx, numy, result)
+    println!("Lets panic!")
+    panic!()
     
     loop { unsafe { asm!("hlt") } }
 }
