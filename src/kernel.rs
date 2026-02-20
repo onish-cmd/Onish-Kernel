@@ -8,7 +8,7 @@ use core::arch::asm;
 use vibe_framebuffer::Cursor;
 
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
-static mut UI_CURSOR: Option<vibe_framebuffer::Cursor> = None;
+static mut UI_CURSOR: Option<Cursor> = None;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {

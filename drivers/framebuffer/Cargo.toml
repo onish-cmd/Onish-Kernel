@@ -4,5 +4,5 @@ version = "0.1.3"
 edition = "2021"
 
 [lib]
-name = "framebuffer"
+name = "vibe_framebuffer"
 path = "src/lib.rs"
