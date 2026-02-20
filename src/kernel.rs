@@ -19,7 +19,6 @@ use core::arch::asm;
 use vibe_framebuffer::Cursor;
 use spleen_font::FONT_16X32;
 use core::fmt::{self, Write};
-use core::fmt;
 
 impl fmt::Write for Cursor {
     fn write_str(&mut self, s: &str) -> fmt::Result {
