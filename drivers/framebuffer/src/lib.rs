@@ -56,7 +56,7 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new(ptr: *mut u32, width: u64, height: u64) -> Self {
+    pub fn new(&self, ptr: *mut u32, width: u64, height: u64) -> Self {
         Self {
             x: 0,
             y: 0,
