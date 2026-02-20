@@ -40,31 +40,6 @@ pub fn _print(args: fmt::Arguments) {
         }
     }
 }
-
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
-    unsafe { if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
-        if let Some(fb) = fb_response.framebuffers().next() {
-            let font = vibe_framebuffer::Font::new(FONT_16X32);
-            UI_CURSOR = Some(Cursor::new(
-                fb.addr() as *mut u32, 
-                fb.width(), 
-                fb.height()
-            ));
-            cursor.font = Some(font);
-        }
-        }
-    }
-    println!("Vibe OS is alive!");
-    clear_screen(0x001A1B26);
-    loop { unsafe {
-            asm!(
-                "hlt"
-            )
-        }
-    }
-}
-
 pub fn clear_screen(color: u32) {
     unsafe { 
         if let Some(ref mut cursor) = UI_CURSOR {
@@ -73,12 +48,32 @@ pub fn clear_screen(color: u32) {
     }
 }
 
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! { 
-    println!("KERNEL PANIC: {}", info);
-    loop { 
-        unsafe { 
-            asm!("hlt")
-        } 
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    unsafe { 
+        if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
+            if let Some(fb) = fb_response.framebuffers().next() {
+                let font = vibe_framebuffer::Font::new(FONT_16X32);
+                let mut cursor = Cursor::new(
+                    fb.addr() as *mut u32,
+                    fb.width(),
+                    fb.height()
+                );
+                
+                cursor.font = Some(font); // Attach font to the local variable
+                UI_CURSOR = Some(cursor); // Now move it to the global static
+            }
+        }
     }
+
+    clear_screen(0x001A1B26); // Clear first so we see the text!
+    println!("Vibe OS is alive!");
+    
+    loop { unsafe { asm!("hlt") } }
+}
+
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("KERNEL PANIC: {}", info); // Removed the underscore from 'info'
+    loop { unsafe { asm!("hlt") } }
 }
