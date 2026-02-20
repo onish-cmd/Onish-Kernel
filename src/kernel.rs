@@ -61,24 +61,26 @@ static mut UI_CURSOR: Option<Cursor> = None;
 pub fn _print(args: fmt::Arguments) {
     unsafe { if let Some(ref mut cursor) = UI_CURSOR { let _ = cursor.write_fmt(args); } }
 }
-
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     assert!(BASE_REVISION.is_supported());
 
-    // 1. Memory Map Logic (Brute Force to bypass Enum errors)
-    let memmap_response = MEMMAP_REQUEST.get_response().as_ref().expect("Memmap failed");
-    let entries = memmap_response.entries();
+    // 1. Fix E0716: Create a binding that lives long enough
+    let response_binding = MEMMAP_REQUEST.get_response();
+    let memmap_response = response_binding.as_ref().expect("VIBE ERROR: Memmap response failed");
+    
+    // 2. Get the entries using the confirmed method
+    let entries = memmap_response.entries(); 
     
     let heap_size = 32 * 1024 * 1024;
     let mut heap_addr: u64 = 0;
 
     for entry in entries {
-        // We use 'unsafe' to treat the enum as a raw u64 regardless of its type name.
-        // This is the "Nuclear Option" that finally beats the API changes.
+        // 3. Nuclear Option: Transmute to bypass the missing Enum path
+        // We use 'unsafe' because we're telling Rust "I know this is a u64"
         let raw_type = unsafe { core::mem::transmute::<_, u64>(entry.entry_type) };
 
-        // In Limine, the 'Usable' variant is always represented by the integer 0.
+        // 0 = USABLE in Limine spec
         if raw_type == 0 && entry.length >= heap_size as u64 {
             heap_addr = entry.base;
             break;
@@ -88,22 +90,22 @@ pub extern "C" fn _start() -> ! {
     if heap_addr == 0 { hcf(); }
     init_heap(heap_addr as usize, heap_size);
 
-    // 2. Framebuffer Driver Initialization
+    // Re-bind Framebuffer for the same reason
+    let fb_binding = FRAMEBUFFER_REQUEST.get_response();
     unsafe {
-        if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response() {
+        if let Some(fb_response) = fb_binding.as_ref() {
             if let Some(fb) = fb_response.framebuffers().next() {
                 let font = Font::new(FONT_16X32);
                 let mut cursor = Cursor::new(fb.addr() as *mut u32, core::ptr::null_mut(), fb.width(), fb.height());
                 cursor.font = Some(font);
-                cursor.clear(0x1a1b26); // Tokyo Night Background
+                cursor.clear(0x1a1b26); 
                 UI_CURSOR = Some(cursor);
             }
         }
     }
 
     println!("Vibe OS: Kernel Space Initialized.");
-    println!("Memory Map entry found at: {:#x}", heap_addr);
-    println!("Heap Status: 32MB Allocated.");
+    println!("Heap: 32MB @ {:#x}", heap_addr);
     
     hcf();
 }
