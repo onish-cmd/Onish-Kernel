@@ -56,9 +56,9 @@ pub extern "C" fn _start() -> ! {
         }
     }
     println!("Vibe OS is alive!");
-    numx = 2;
-    numy = 4;
-    result = numx + numy;
+    let numx = 2;
+    let numy = 4;
+    let result = numx + numy;
     println!("fmt test: {} + {} = {}", numx, numy, result)
     println!("Lets panic!")
     panic!()
