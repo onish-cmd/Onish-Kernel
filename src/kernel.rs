@@ -101,14 +101,17 @@ pub extern "C" fn _start() -> ! {
 
     let heap_size = 16 * 1024 * 1024; // Lowered to 16MB for stability
     let mut heap_virt_addr: u64 = 0;
+    // Use the actual enum type from the crate
+    use limine::memory_map::EntryType;
 
     for entry in memmap_response.entries() {
-        let raw_type = unsafe { core::mem::transmute::<_, u64>(entry.entry_type) };
-
-        // Ensure we are in USABLE memory (0) and NOT in the first 2MB (where kernel/bootloader live)
-        if raw_type == 0 && entry.length >= heap_size as u64 && entry.base >= 0x200000 {
-            heap_virt_addr = entry.base + hhdm_offset;
-            break;
+        // Direct comparison is safer than transmute
+        if entry.entry_type == EntryType::USABLE {
+            // Ensure chunk is big enough AND above the first 4MB to be safe
+            if entry.length >= heap_size as u64 && entry.base >= 0x400000 {
+                heap_virt_addr = entry.base + hhdm_offset;
+                break;
+            }
         }
     }
 
@@ -117,17 +120,6 @@ pub extern "C" fn _start() -> ! {
     }
     init_heap(heap_virt_addr as usize, heap_size);
 
-    if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
-        if let Some(fb) = fb_response.framebuffers().next() {
-            let fb_addr = fb.addr() as *mut u32;
-            unsafe {
-                // Write 500 lines of white pixels
-                for i in 0..(fb.width() * 500) as usize {
-                    core::ptr::write_volatile(fb_addr.add(i), 0xffffff);
-                }
-            }
-        }
-    }
     // --- 3. Initialize Framebuffer ---
     if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
         if let Some(fb) = fb_response.framebuffers().next() {
