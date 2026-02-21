@@ -12,13 +12,16 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-extern crate limine;
 extern crate alloc;
+extern crate limine;
 
 use core::arch::asm;
 use core::fmt::{self, Write};
+use limine::request::{
+    FramebufferRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+    StackSizeRequest,
+};
 use limine::BaseRevision;
-use limine::request::{FramebufferRequest, MemoryMapRequest, HhdmRequest, StackSizeRequest, RequestsEndMarker, RequestsStartMarker};
 use linked_list_allocator::LockedHeap;
 use spleen_font::FONT_16X32;
 use vibe_framebuffer::{Cursor, Font};
@@ -57,7 +60,9 @@ static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap(start: usize, size: usize) {
-    unsafe { ALLOCATOR.lock().init(start as *mut u8, size); }
+    unsafe {
+        ALLOCATOR.lock().init(start as *mut u8, size);
+    }
 }
 
 #[alloc_error_handler]
@@ -68,7 +73,11 @@ fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
 static mut UI_CURSOR: Option<Cursor> = None;
 
 pub fn _print(args: fmt::Arguments) {
-    unsafe { if let Some(ref mut cursor) = UI_CURSOR { let _ = cursor.write_fmt(args); } }
+    unsafe {
+        if let Some(ref mut cursor) = UI_CURSOR {
+            let _ = cursor.write_fmt(args);
+        }
+    }
 }
 
 #[no_mangle]
@@ -76,23 +85,26 @@ pub extern "C" fn _start() -> ! {
     assert!(BASE_REVISION.is_supported());
 
     // Get HHDM Offset safely
-    let hhdm_offset = HHDM_REQUEST.get_response()
+    let hhdm_offset = HHDM_REQUEST
+        .get_response()
         .as_ref()
         .expect("VIBE ERROR: HHDM failed")
         .offset();
 
     // --- 2. Initialize Heap Safely ---
     let response_binding = MEMMAP_REQUEST.get_response();
-    
+
     // 2. Now borrow from that binding
-    let memmap_response = response_binding.as_ref().expect("VIBE ERROR: Memmap failed");
-    
+    let memmap_response = response_binding
+        .as_ref()
+        .expect("VIBE ERROR: Memmap failed");
+
     let heap_size = 16 * 1024 * 1024; // Lowered to 16MB for stability
     let mut heap_virt_addr: u64 = 0;
 
     for entry in memmap_response.entries() {
         let raw_type = unsafe { core::mem::transmute::<_, u64>(entry.entry_type) };
-        
+
         // Ensure we are in USABLE memory (0) and NOT in the first 2MB (where kernel/bootloader live)
         if raw_type == 0 && entry.length >= heap_size as u64 && entry.base >= 0x200000 {
             heap_virt_addr = entry.base + hhdm_offset;
@@ -100,16 +112,18 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    if heap_virt_addr == 0 { hcf(); }
+    if heap_virt_addr == 0 {
+        hcf();
+    }
     init_heap(heap_virt_addr as usize, heap_size);
-// --- 3. Initialize Framebuffer ---
+    // --- 3. Initialize Framebuffer ---
     if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
         if let Some(fb) = fb_response.framebuffers().next() {
             let font = Font::new(FONT_16X32);
 
             // Calculate buffer size: Width * Height * 4 (for u32 pixels)
             let buffer_size = (fb.width() * fb.height() * 4) as usize;
-            
+
             unsafe {
                 // ALLOCATE BACKBUFFER FROM HEAP
                 let layout = core::alloc::Layout::from_size_align(buffer_size, 4096).unwrap();
@@ -130,9 +144,9 @@ pub extern "C" fn _start() -> ! {
                     fb_addr,
                     fb_addr, // Temporary fix, add real backbuffer later.
                     fb.width(),
-                    fb.height()
+                    fb.height(),
                 );
-                
+
                 cursor.font = Some(font);
                 cursor.clear(0x1a1b26);
                 UI_CURSOR = Some(cursor);
@@ -149,6 +163,12 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
+        for i in 0..size {
+            *fb_addr.add(i) = 0xf7768e;
+        }
+    }
+
+    unsafe {
         if let Some(ref mut cursor) = UI_CURSOR {
             cursor.color_fg = 0xf7768e;
             println!("\nPANIC: {}", info);
@@ -158,5 +178,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 fn hcf() -> ! {
-    loop { unsafe { asm!("hlt") } }
+    loop {
+        unsafe { asm!("hlt") }
+    }
 }
