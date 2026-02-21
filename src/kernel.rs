@@ -105,7 +105,7 @@ pub extern "C" fn _start() -> ! {
     }
 
     // --- HHDM STAGE ---
-    let hhdm_binding = HHHDM_REQUEST.get_response();
+    let hhdm_binding = HHDM_REQUEST.get_response();
     let hhdm_offset = hhdm_binding.as_ref().expect("HHDM Failed").offset();
 
     // BAR 2: YELLOW (HHDM Offset Acquired)
