@@ -102,8 +102,8 @@ pub extern "C" fn _start() -> ! {
         .offset();
 
     // 2. Dynamic Heap Search
-    let memmap_response = MEMMAP_REQUEST
-        .get_response()
+    let memmap_binding = MEMMAP_REQUEST.get_response();
+    let memmap_response = memmap_binding
         .as_ref()
         .expect("VIBE ERROR: Memmap failed");
 
