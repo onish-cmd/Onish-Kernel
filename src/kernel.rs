@@ -119,9 +119,10 @@ pub extern "C" fn _start() -> ! {
                     hcf(); // If allocation fails, stop.
                 }
 
+                let fb_addr = fb.addr() as *mut u32;
                 let mut cursor = Cursor::new(
-                    fb.addr() as *mut u32,
-                    backbuffer_ptr, // THE REAL BACKBUFFER
+                    fb_addr,
+                    fb_addr, // THE REAL BACKBUFFER
                     fb.width(),
                     fb.height()
                 );
