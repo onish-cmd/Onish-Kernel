@@ -115,10 +115,13 @@ pub extern "C" fn _start() -> ! {
                 let layout = core::alloc::Layout::from_size_align(buffer_size, 4096).unwrap();
                 let backbuffer_ptr = alloc::alloc::alloc(layout) as *mut u32;
                 let fb_addr = fb.addr() as *mut u32;
+                let size = (fb.width() * fb.height()) as usize;
 
                 if backbuffer_ptr.is_null() {
-                    for i in 0..(fb.width() * fb.height()) {
-                        fb_addr.add(i) = 0xf7768e;
+                    unsafe {
+                        for i in 0..size {
+                            *fb_addr.add(i) = 0xf7768e;
+                        }
                     }
                     hcf(); // If allocation fails, stop.
                 }
