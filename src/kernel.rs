@@ -82,6 +82,19 @@ pub fn _print(args: fmt::Arguments) {
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+
+    if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
+        if let Some(fb) = fb_response.framebuffers().next() {
+            let fb_addr = fb.addr() as *mut u32;
+            unsafe {
+                // Write 500 lines of white pixels
+                for i in 0..(fb.width() * 500) as usize {
+                    core::ptr::write_volatile(fb_addr.add(i), 0xffffff);
+                }
+            }
+        }
+    }
+
     assert!(BASE_REVISION.is_supported());
 
     // Get HHDM Offset safely
