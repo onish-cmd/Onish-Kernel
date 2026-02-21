@@ -29,7 +29,7 @@ static _START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 
 #[used]
 #[unsafe(link_section = ".requests")]
-static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(0x10000); // 64KB Stack
+static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(0x10000);
 
 #[used]
 #[unsafe(link_section = ".requests")]
@@ -47,14 +47,19 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
-// --- Global Allocator & UI ---
+// --- Global Allocator ---
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
-
 static mut UI_CURSOR: Option<Cursor> = None;
 
-// --- Macros ---
+pub fn _print(args: fmt::Arguments) {
+    unsafe {
+        if let Some(ref mut cursor) = UI_CURSOR {
+            let _ = cursor.write_fmt(args);
+        }
+    }
+}
 
 #[macro_export]
 macro_rules! print {
@@ -66,16 +71,6 @@ macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
-
-pub fn _print(args: fmt::Arguments) {
-    unsafe {
-        if let Some(ref mut cursor) = UI_CURSOR {
-            let _ = cursor.write_fmt(args);
-        }
-    }
-}
-
-// --- Initialization Functions ---
 
 pub fn init_heap(start: usize, size: usize) {
     unsafe {
@@ -94,24 +89,40 @@ fn alloc_error_handler(layout: core::alloc::Layout) -> ! {
 pub extern "C" fn _start() -> ! {
     assert!(BASE_REVISION.is_supported());
 
-    // 1. Get HHDM Offset (Required to turn physical RAM addresses into virtual ones)
-    let hhdm_offset = HHDM_REQUEST
-        .get_response()
-        .as_ref()
-        .expect("VIBE ERROR: HHDM failed")
-        .offset();
+    // --- INITIAL DEBUG SETUP ---
+    // Fetch FB early to draw bars. If this fails, we stay black.
+    let fb_binding = FRAMEBUFFER_REQUEST.get_response();
+    let fb_res = fb_binding.as_ref().expect("FB Failed");
+    let fb = fb_res.framebuffers().next().expect("No FB found");
+    let fb_addr = fb.addr() as *mut u32;
+    let width = fb.width() as usize;
 
-    // 2. Dynamic Heap Search
+    // BAR 1: WHITE (Kernel Reached _start)
+    unsafe {
+        for i in 0..(width * 20) {
+            core::ptr::write_volatile(fb_addr.add(i), 0xffffff);
+        }
+    }
+
+    // --- HHDM STAGE ---
+    let hhdm_binding = HHHDM_REQUEST.get_response();
+    let hhdm_offset = hhdm_binding.as_ref().expect("HHDM Failed").offset();
+
+    // BAR 2: YELLOW (HHDM Offset Acquired)
+    unsafe {
+        for i in (width * 20)..(width * 40) {
+            core::ptr::write_volatile(fb_addr.add(i), 0xffff00);
+        }
+    }
+
+    // --- MEMMAP STAGE ---
     let memmap_binding = MEMMAP_REQUEST.get_response();
-    let memmap_response = memmap_binding
-        .as_ref()
-        .expect("VIBE ERROR: Memmap failed");
+    let memmap_response = memmap_binding.as_ref().expect("Memmap Failed");
 
-    let heap_size = 16 * 1024 * 1024; // 16MB Dynamic Heap
+    let heap_size = 16 * 1024 * 1024;
     let mut heap_virt_addr: u64 = 0;
 
     for entry in memmap_response.entries() {
-        // Only use USABLE RAM, and avoid the first 16MB to stay clear of Kernel/BIOS
         if entry.entry_type == EntryType::USABLE && entry.base >= 0x1000000 {
             if entry.length >= heap_size as u64 {
                 heap_virt_addr = entry.base + hhdm_offset;
@@ -120,63 +131,49 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    if heap_virt_addr == 0 {
-        // Use raw framebuffer panic if possible, else just halt
-        hcf(); 
-    }
-
-    // Initialize the Dynamic Heap!
-    init_heap(heap_virt_addr as usize, heap_size);
-
-    // 3. Initialize Framebuffer & UI
-    if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
-        if let Some(fb) = fb_response.framebuffers().next() {
-            let font = Font::new(FONT_16X32);
-            let fb_addr = fb.addr() as *mut u32;
-
-            unsafe {
-                // For the 8500G/Mi TV, we draw directly to the front buffer for now 
-                // to avoid double-buffering hangs until we refine the blit() logic.
-                let mut cursor = Cursor::new(
-                    fb_addr,
-                    fb_addr, 
-                    fb.width(),
-                    fb.height(),
-                );
-
-                cursor.font = Some(font);
-                cursor.clear(0x1a1b26); // Tokyo Night Dark Background
-                UI_CURSOR = Some(cursor);
-            }
+    // BAR 3: BLUE (Memory Chunk Found)
+    unsafe {
+        for i in (width * 40)..(width * 60) {
+            core::ptr::write_volatile(fb_addr.add(i), 0x0000ff);
         }
     }
 
-    // 4. Success Output
-    println!("Vibe OS: Kernel Initialized successfully.");
-    println!("Architecture: x86_64 (Zen 4 Target)");
-    println!("Memory Management: Dynamic Heap @ {:#x}", heap_virt_addr);
-    
-    // Test the alloc crate
-    let mut v = alloc::vec::Vec::new();
-    v.push("Tokyo Night");
-    v.push("Vibe OS");
-    println!("Active Theme: {}", v[0]);
+    if heap_virt_addr == 0 { hcf(); }
+
+    // --- HEAP INIT STAGE ---
+    init_heap(heap_virt_addr as usize, heap_size);
+
+    // BAR 4: GREEN (Heap Initialized without hanging!)
+    unsafe {
+        for i in (width * 60)..(width * 80) {
+            core::ptr::write_volatile(fb_addr.add(i), 0x00ff00);
+        }
+    }
+
+    // --- FINAL UI SETUP ---
+    let font = Font::new(FONT_16X32);
+    unsafe {
+        // DIRECT DRAWING to avoid backbuffer blit errors for now
+        let mut cursor = Cursor::new(fb_addr, fb_addr, fb.width(), fb.height());
+        cursor.font = Some(font);
+        cursor.clear(0x1a1b26); // Tokyo Night
+        UI_CURSOR = Some(cursor);
+    }
+
+    println!("Vibe OS: Diagnostic Boot Complete.");
+    println!("Dynamic Heap @ {:#x}", heap_virt_addr);
 
     hcf();
 }
 
-// --- Error Handling ---
-
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
-        // Attempt to print via the UI_CURSOR
         if let Some(ref mut cursor) = UI_CURSOR {
-            cursor.color_fg = 0xf7768e; // Tokyo Night Red/Pink
-            println!("\n[!] KERNEL PANIC");
-            println!("{}", info);
+            cursor.color_fg = 0xf7768e;
+            println!("\nPANIC: {}", info);
         } else {
-            // FALLBACK: Raw hardware write if UI isn't ready
+            // Emergency Red Screen if UI isn't ready
             if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
                 if let Some(fb) = fb_response.framebuffers().next() {
                     let fb_addr = fb.addr() as *mut u32;
