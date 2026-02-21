@@ -162,18 +162,22 @@ pub extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    let fb_addr = fb.addr() as *mut u32;
-    let size = (fb.width() * fb.height()) as usize;
-    unsafe {
-        for i in 0..size {
-            *fb_addr.add(i) = 0xf7768e;
-        }
-    }
-
     unsafe {
         if let Some(ref mut cursor) = UI_CURSOR {
             cursor.color_fg = 0xf7768e;
             println!("\nPANIC: {}", info);
+        } else {
+            // EMERGENCY FALLBACK: If cursor isn't ready, turn the whole screen Red
+            // We re-fetch the framebuffer request directly here
+            if let Some(fb_response) = FRAMEBUFFER_REQUEST.get_response().as_ref() {
+                if let Some(fb) = fb_response.framebuffers().next() {
+                    let fb_addr = fb.addr() as *mut u32;
+                    let size = (fb.width() * fb.height()) as usize;
+                    for i in 0..size {
+                        core::ptr::write_volatile(fb_addr.add(i), 0xf7768e);
+                    }
+                }
+            }
         }
     }
     hcf();
